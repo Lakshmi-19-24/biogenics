@@ -110,16 +110,14 @@ const dailyReportSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+dailyReportSchema.index({
+  employee: 1,
+  reportDate: 1,
+});
 
-dailyReportSchema.index(
-  {
-    employee: 1,
-    reportDate: 1,
-  },
-  {
-    unique: true,
-  }
-);
+dailyReportSchema.index({
+  createdAt: -1,
+});
 
 export const DailyReport =
   mongoose.model(

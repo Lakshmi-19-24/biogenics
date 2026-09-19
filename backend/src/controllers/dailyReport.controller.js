@@ -13,7 +13,9 @@ const today = () =>
   new Date().toISOString().slice(0, 10);
 
 // =====================================================
-// SUBMIT / UPDATE DAILY REPORT
+// SUBMIT DAILY REPORT
+// Every submission creates a NEW report.
+// Multiple reports on the same date are allowed.
 // =====================================================
 
 export const submitDailyReport =
@@ -22,28 +24,64 @@ export const submitDailyReport =
       req.body.reportDate || today();
 
     const report =
-      await DailyReport.findOneAndUpdate(
-        {
-          employee: req.user._id,
-          reportDate,
-        },
-        {
-          ...req.body,
-          employee: req.user._id,
-          reportDate,
-          status: "submitted",
-        },
-        {
-          new: true,
-          upsert: true,
-          runValidators: true,
-          setDefaultsOnInsert: true,
-        }
-      );
+      await DailyReport.create({
+        employee: req.user._id,
+
+        reportDate,
+
+        visits: Array.isArray(req.body.visits)
+          ? req.body.visits
+          : [],
+
+        callsMade: Number(
+          req.body.callsMade || 0
+        ),
+
+        leadsCreated: Number(
+          req.body.leadsCreated || 0
+        ),
+
+        ordersBooked: Number(
+          req.body.ordersBooked || 0
+        ),
+
+        paymentsCollected: Number(
+          req.body.paymentsCollected || 0
+        ),
+
+        summary: String(
+          req.body.summary || ""
+        ).trim(),
+
+        blockers: String(
+          req.body.blockers || ""
+        ).trim(),
+
+        tomorrowPlan: String(
+          req.body.tomorrowPlan || ""
+        ).trim(),
+
+        status: "submitted",
+
+        replies: [],
+      });
+
+    const populatedReport =
+      await DailyReport.findById(
+        report._id
+      )
+        .populate(
+          "employee",
+          "name email role"
+        )
+        .populate(
+          "replies.user",
+          "name email role"
+        );
 
     emitToAdmins(
       "daily-report:submitted",
-      report
+      populatedReport
     );
 
     await notifyRoles(
@@ -52,7 +90,8 @@ export const submitDailyReport =
         title:
           "Daily report submitted",
 
-        message: `${req.user.name} submitted a daily report for ${reportDate}.`,
+        message:
+          `${req.user.name} submitted a daily report for ${reportDate}.`,
 
         type: "system",
 
@@ -73,9 +112,9 @@ export const submitDailyReport =
 
     sendResponse(
       res,
-      200,
+      201,
       "Daily report submitted",
-      report
+      populatedReport
     );
   });
 
@@ -89,7 +128,9 @@ export const listDailyReports =
       page,
       limit,
       skip,
-    } = getPagination(req.query);
+    } = getPagination(
+      req.query
+    );
 
     const filter = {};
 
@@ -127,7 +168,10 @@ export const listDailyReports =
         )
         .skip(skip)
         .limit(limit)
-        .sort("-reportDate"),
+        .sort({
+          reportDate: -1,
+          createdAt: -1,
+        }),
 
       DailyReport.countDocuments(
         filter
@@ -157,7 +201,9 @@ export const listMyDailyReports =
       page,
       limit,
       skip,
-    } = getPagination(req.query);
+    } = getPagination(
+      req.query
+    );
 
     const filter = {
       employee: req.user._id,
@@ -188,7 +234,10 @@ export const listMyDailyReports =
         )
         .skip(skip)
         .limit(limit)
-        .sort("-reportDate"),
+        .sort({
+          reportDate: -1,
+          createdAt: -1,
+        }),
 
       DailyReport.countDocuments(
         filter
@@ -222,7 +271,6 @@ export const reviewDailyReport =
     };
 
     if (status === "submitted") {
-      // Move report back to Pending
       update.reviewNote =
         undefined;
 
@@ -232,7 +280,6 @@ export const reviewDailyReport =
       update.reviewedAt =
         undefined;
     } else {
-      // Reviewed or Rejected
       update.reviewNote =
         req.body.reviewNote || "";
 
@@ -286,8 +333,9 @@ export const reviewDailyReport =
 
 export const replyToDailyReport =
   asyncHandler(async (req, res) => {
-    const { message } =
-      req.body;
+    const {
+      message,
+    } = req.body;
 
     if (
       !message ||
@@ -311,11 +359,8 @@ export const replyToDailyReport =
       );
     }
 
-    // =================================================
-    // SALES EMPLOYEE
-    // Can reply ONLY to their own report.
-    // =================================================
-
+    // Sales employee can reply
+    // only to their own report.
     if (
       req.user.role === "sales" &&
       String(
@@ -329,10 +374,6 @@ export const replyToDailyReport =
       );
     }
 
-    // =================================================
-    // ADD REPLY
-    // =================================================
-
     report.replies.push({
       user: req.user._id,
       message:
@@ -340,10 +381,6 @@ export const replyToDailyReport =
     });
 
     await report.save();
-
-    // =================================================
-    // RETURN UPDATED REPORT
-    // =================================================
 
     const updatedReport =
       await DailyReport.findById(
