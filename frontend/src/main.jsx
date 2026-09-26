@@ -12,7 +12,7 @@ import "./index.css";
 document.documentElement.dataset.theme = localStorage.getItem("theme") || "dark";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <BrowserRouter>
+  <BrowserRouter basename="/sales">
     <Provider store={store}>
       <AuthProvider>
         <SidebarProvider>

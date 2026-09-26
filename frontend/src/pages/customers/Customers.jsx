@@ -1,3 +1,4 @@
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
@@ -7,6 +8,11 @@ import FormField from "../../components/ui/FormField";
 import StatusBadge from "../../components/ui/StatusBadge";
 import PurchaseHistoryTab from "../../components/PurchaseHistoryTab";
 import API, { apiErrorMessage, apiItems } from "../../services/api";
+import {
+  startAutoLocationTracking,
+  stopAutoLocationTracking,
+  sendLocationViaAPI,
+} from "../../services/locationTracking";
 import toast from "react-hot-toast";
 import {
   Archive,
@@ -86,8 +92,18 @@ const normalizeName = (value = "") =>
   String(value).trim().replace(/\s+/g, " ").toLowerCase();
 
 export default function Customers() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [customers, setCustomers] = useState([]);
   const [deletedCustomers, setDeletedCustomers] = useState([]);
+  const [activeVisitId, setActiveVisitId] = useState(null);
+  const [activeVisitCustomerId, setActiveVisitCustomerId] = useState(null);
+  const [visitLoading, setVisitLoading] = useState(false);
+  const [visitReportSubmitted, setVisitReportSubmitted] = useState(false);
+  const params = new URLSearchParams(window.location.search);
+
+const reportSubmitted = params.get("reportSubmitted");
+const reportVisitId = params.get("visitId");
 
   const [loading, setLoading] = useState(true);
   const [binLoading, setBinLoading] = useState(false);
@@ -161,6 +177,56 @@ export default function Customers() {
   useEffect(() => {
     load();
   }, []);
+useEffect(() => {
+  const restoreVisit = async () => {
+    try {
+      if (!reportSubmitted || !reportVisitId) {
+        return;
+      }
+
+      const response = await API.get(
+        "/visits?status=checked_in&limit=10"
+      );
+
+      const visits = apiItems(response);
+
+      const activeVisit = visits.find(
+        (visit) =>
+          String(visit._id) === String(reportVisitId)
+      );
+
+      if (!activeVisit) {
+        toast.error("Active customer visit could not be found.");
+        return;
+      }
+
+      const customerId =
+        activeVisit.customer?._id ||
+        activeVisit.customer?.id ||
+        activeVisit.customer;
+
+      setActiveVisitId(activeVisit._id);
+      setActiveVisitCustomerId(customerId);
+      setVisitReportSubmitted(true);
+
+      startAutoLocationTracking(true);
+
+      toast.success(
+        "Visit report submitted. You can now check out."
+      );
+    } catch (error) {
+      console.error("Restore visit error:", error);
+
+      toast.error(
+        error?.response?.data?.message ||
+          "Unable to restore active visit."
+      );
+    }
+  };
+
+  load();
+  restoreVisit();
+}, []);
 
   /*
    * ---------------------------------------------------------
@@ -304,7 +370,117 @@ export default function Customers() {
 
     setOpen(true);
   };
+  const getCustomerVisitLocation = () =>
+  new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("GPS is not supported by this browser."));
+      return;
+    }
 
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+      },
+      (error) => {
+        reject(
+          new Error(
+            error.code === 1
+              ? "Please allow GPS/location permission."
+              : "Unable to get your current location."
+          )
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    );
+  });
+
+const checkInCustomer = async (customer) => {
+  try {
+    setVisitLoading(true);
+
+    const location = await getCustomerVisitLocation();
+
+    const response = await API.post("/visits", {
+      customer: customer._id,
+      purpose: "sales",
+    });
+
+    const visitId =
+      response.data?.data?._id ||
+      response.data?._id;
+
+    if (!visitId) {
+      throw new Error("Unable to create customer visit.");
+    }
+
+    await API.patch(`/visits/${visitId}/check-in`, {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      geoFenceVerified: false,
+    });
+
+  setActiveVisitId(visitId);
+setActiveVisitCustomerId(customer._id);
+setVisitReportSubmitted(false);
+
+    startAutoLocationTracking(true);
+
+    toast.success(`Checked in to ${customer.name}`);
+  } catch (error) {
+    console.error("Customer check-in error:", error);
+
+    toast.error(
+      error?.response?.data?.message ||
+        error?.message ||
+        "Unable to check in"
+    );
+  } finally {
+    setVisitLoading(false);
+  }
+};
+
+const checkOutCustomer = async (customer) => {
+  try {
+    if (!activeVisitId) {
+      toast.error("No active customer visit found.");
+      return;
+    }
+
+    setVisitLoading(true);
+
+    const location = await getCustomerVisitLocation();
+
+    await API.patch(`/visits/${activeVisitId}/complete`, {
+      latitude: location.latitude,
+      longitude: location.longitude,
+    });
+
+    stopAutoLocationTracking();
+
+    setActiveVisitId(null);
+    setActiveVisitCustomerId(null);
+
+    toast.success(`Checked out from ${customer.name}`);
+  } catch (error) {
+    console.error("Customer check-out error:", error);
+
+    toast.error(
+      error?.response?.data?.message ||
+        error?.message ||
+        "Unable to check out"
+    );
+  } finally {
+    setVisitLoading(false);
+  }
+};
   const openHistory = (event, customer) => {
     event.stopPropagation();
     setHistoryCustomer(customer);
@@ -713,12 +889,51 @@ export default function Customers() {
       render: (row) => (
         <div
           style={{
+            
             display: "flex",
             alignItems: "center",
             gap: "8px",
             flexWrap: "wrap",
           }}
         >
+     <button
+  className="btn-ghost"
+  style={{
+    padding: "7px 10px",
+    fontSize: "12px",
+    color:
+      activeVisitCustomerId === row._id
+        ? visitReportSubmitted
+          ? "var(--success)"
+          : "var(--warning)"
+        : "var(--success)",
+  }}
+  onClick={(event) => {
+    event.stopPropagation();
+
+    if (activeVisitCustomerId === row._id) {
+      if (!visitReportSubmitted) {
+     window.location.href =
+  `${import.meta.env.BASE_URL}daily-reports/submit?returnTo=${encodeURIComponent(
+    "/customers"
+  )}&returnVisitId=${activeVisitId}`;
+        return;
+      }
+
+      checkOutCustomer(row);
+      return;
+    }
+
+    checkInCustomer(row);
+  }}
+  disabled={visitLoading}
+>
+  {activeVisitCustomerId === row._id
+    ? visitReportSubmitted
+      ? "Check Out"
+      : "Submit Report"
+    : "Check In"}
+</button>
           <button
             className="btn-ghost"
             style={{

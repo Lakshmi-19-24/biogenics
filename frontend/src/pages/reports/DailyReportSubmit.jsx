@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "../../services/api";
 import PageHeader from "../../components/ui/PageHeader";
 
 export default function DailyReportSubmit() {
-  const navigate = useNavigate();
+const navigate = useNavigate();
+const [searchParams] = useSearchParams();
+
+const visitId = searchParams.get("visitId");
+const returnTo = searchParams.get("returnTo");
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     reportDate: new Date().toISOString().slice(0, 10),
@@ -28,14 +32,24 @@ export default function DailyReportSubmit() {
     setLoading(true);
     try {
       await API.post("/daily-reports", {
-        ...form,
-        callsMade: Number(form.callsMade || 0),
-        leadsCreated: Number(form.leadsCreated || 0),
-        ordersBooked: Number(form.ordersBooked || 0),
-        paymentsCollected: Number(form.paymentsCollected || 0),
-      });
+  ...form,
+  visits: visitId ? [visitId] : [],
+  callsMade: Number(form.callsMade || 0),
+  leadsCreated: Number(form.leadsCreated || 0),
+  ordersBooked: Number(form.ordersBooked || 0),
+  paymentsCollected: Number(form.paymentsCollected || 0),
+});
       toast.success("Daily report submitted");
-      navigate("/daily-reports");
+
+if (returnTo) {
+  const returnVisitId = searchParams.get("returnVisitId");
+
+  navigate(
+    `${returnTo}?reportSubmitted=true&visitId=${returnVisitId || ""}`
+  );
+}else {
+  navigate("/daily-reports");
+}
     } catch (e) {
       toast.error(apiErrorMessage(e, "Failed to submit"));
     } finally {

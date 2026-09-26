@@ -148,6 +148,9 @@ export const listDailyReports =
       filter.status =
         req.query.status;
     }
+    if (req.query.visitId) {
+  filter.visits = req.query.visitId;
+}
 
     const [
       items,
