@@ -15,6 +15,7 @@ const NAV = {
     { to:"/register",     icon:UserCog,         label:"Create User",   group:"Admin" },
     { to:"/leads",        icon:Users,           label:"Leads / CRM" },
     { to:"/customers",    icon:Users,           label:"Customers" },
+    { to: "/customer-visits", icon: MapPin, label: "Customer Visit History" },
     { to:"/orders",       icon:ShoppingCart,    label:"Orders" },
     { to:"/products",     icon:Package,         label:"Products" },
     { to:"/activity",     icon:ClipboardList,   label:"Daily Activity",group:"Operations" },

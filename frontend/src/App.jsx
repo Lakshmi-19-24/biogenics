@@ -1,5 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 
+import CustomerVisitHistory from "./pages/CustomerVisitHistory";
+
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
@@ -114,6 +116,16 @@ function App() {
         <Route path="/daily-reports" element={<DailyReports />} />
         <Route path="/daily-reports/submit" element={<ProtectedRoute role="sales"><DailyReportSubmit /></ProtectedRoute>} />
         <Route path="/customers" element={<Customers />} />
+        
+<Route
+  path="/customer-visits"
+  element={
+    <ProtectedRoute role="owner">
+      <CustomerVisitHistory />
+    </ProtectedRoute>
+  }
+/>
+
         <Route path="/quotations" element={<Quotations />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/documents" element={<Documents />} />
