@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Lead } from '../models/lead.model.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -18,6 +19,10 @@ export const listLeads = asyncHandler(async (req, res) => {
   if (req.query.status) filter.status = req.query.status;
   if (req.query.assignedTo) filter.assignedTo = req.query.assignedTo;
 
+  if (req.query.createdBy) {
+  filter.createdBy = req.query.createdBy;
+}
+
   // Sales users can only see their own leads
   if (req.user.role === 'sales') {
     filter.$or = [
@@ -27,11 +32,13 @@ export const listLeads = asyncHandler(async (req, res) => {
   }
 
   const [items, total] = await Promise.all([
-    Lead.find(filter)
-      .populate('assignedTo', 'name email')
-      .skip(skip)
-      .limit(limit)
-      .sort('-createdAt'),
+    
+Lead.find(filter)
+  .populate('assignedTo', 'name email')
+  .populate('createdBy', 'name email role')
+  .skip(skip)
+  .limit(limit)
+  .sort('-createdAt'),
 
     Lead.countDocuments(filter)
   ]);
@@ -43,6 +50,60 @@ export const listLeads = asyncHandler(async (req, res) => {
     total
   });
 });
+
+
+
+export const getLeadSummary = asyncHandler(async (req, res) => {
+  const filter = {};
+
+  if (req.query.createdBy) {
+    if (!mongoose.isValidObjectId(req.query.createdBy)) {
+      throw new ApiError(400, 'Invalid salesperson ID');
+    }
+
+    filter.createdBy = new mongoose.Types.ObjectId(req.query.createdBy);
+  }
+
+  // Sales users can only see their own leads
+  if (req.user.role === 'sales') {
+    filter.$or = [
+      { assignedTo: req.user._id },
+      { createdBy: req.user._id }
+    ];
+  }
+
+  const summary = await Lead.aggregate([
+    { $match: filter },
+    {
+      $group: {
+        _id: { $toLower: '$status' },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const counts = {
+    total: 0,
+    new: 0,
+    contacted: 0,
+    qualified: 0,
+    converted: 0,
+    lost: 0
+  };
+
+  for (const item of summary) {
+    if (Object.prototype.hasOwnProperty.call(counts, item._id)) {
+      counts[item._id] = item.count;
+      counts.total += item.count;
+    }
+  }
+
+  sendResponse(res, 200, 'Lead summary fetched', counts);
+});
+
+
+
+
 
 export const createLead = asyncHandler(async (req, res) => {
   const lead = await Lead.create({
