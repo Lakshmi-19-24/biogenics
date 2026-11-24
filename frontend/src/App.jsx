@@ -25,6 +25,7 @@ import GPSTracking from "./pages/tracking/GPSTracking";
 import Notifications from "./pages/notifications/Notifications";
 import Customers from "./pages/customers/Customers";
 import Documents from "./pages/documents/Documents";
+import ExcelSheets from "./pages/excel/ExcelSheets";
 import Quotations from "./pages/billing/Quotations";
 import Invoices from "./pages/billing/Invoices";
 import Inventory from "./pages/inventory/Inventory";
@@ -129,6 +130,7 @@ function App() {
         <Route path="/quotations" element={<Quotations />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/documents" element={<Documents />} />
+        <Route path="/excel-sheets" element={<ExcelSheets />} />
         <Route path="/targets" element={<Targets />} />
         <Route path="/reminders" element={<Reminders />} />
         <Route path="/inventory" element={<ProtectedRoute roles={["owner","admin","manager"]}><Inventory /></ProtectedRoute>} />

@@ -10,7 +10,7 @@ import { checkInAttendance, checkOutAttendance, fetchAttendance } from "../../st
 import API, { collection } from "../../services/api";
 import { mapAttendanceSessionsFromApi } from "../../store/mappers";
 import toast from "react-hot-toast";
-import { Clock, CheckCircle, XCircle, AlertTriangle, LogIn, LogOut } from "lucide-react";
+import { Clock, CheckCircle, XCircle, AlertTriangle, LogIn, LogOut, Download } from "lucide-react";
 
 export default function Attendance() {
   const { user } = useAuth();
@@ -54,6 +54,72 @@ export default function Attendance() {
     if (Number.isNaN(d.getTime())) return "-";
     return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
   };
+
+
+  
+  const exportMonthlyAttendance = () => {
+    if (!canManageAttendance) return;
+
+    if (teamLoading) {
+      toast.error("Please wait until attendance finishes loading");
+      return;
+    }
+
+    if (!displayRecords.length) {
+      toast.error("No attendance records available to export");
+      return;
+    }
+
+    const escapeCSV = (value) => {
+      const text = String(value ?? "");
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const rows = [
+      [
+        "Employee Name",
+        "Role",
+        "Date",
+        "Check In",
+        "Check Out",
+        "Break (minutes)",
+        "Working Hours",
+        "Status",
+      ],
+      ...displayRecords.map((record) => [
+        record.employeeName || "-",
+        record.role || "-",
+        record.date || "-",
+        getTime(record.checkInAt || record.checkIn),
+        getTime(record.checkOutAt || record.checkOut),
+        record.breakMinutes ?? 0,
+        getHours(record),
+        statusLabel(record.status),
+      ]),
+    ];
+
+    const csv = "\uFEFF" + rows
+      .map((row) => row.map(escapeCSV).join(","))
+      .join("\r\n");
+
+    const blob = new Blob([csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `attendance-${month}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    toast.success("Monthly attendance exported successfully");
+  };
+
 
   const getHours = (record) => {
     if (typeof record?.totalMinutes === "number") {
@@ -241,6 +307,32 @@ export default function Attendance() {
               </select>
             )}
             <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} style={{ padding: "9px 14px", borderRadius: "var(--r)", background: "var(--surface)", border: "1.5px solid var(--border)", fontSize: "13px", color: "var(--text)", outline: "none", cursor: "pointer" }} />
+          
+{canManageAttendance && user?.role === "owner" && (
+  <button
+    onClick={exportMonthlyAttendance}
+    disabled={teamLoading || displayRecords.length === 0}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "9px 14px",
+      borderRadius: "var(--r)",
+      border: "none",
+      background: "var(--primary-glossy-gradient)",
+      color: "white",
+      fontSize: "13px",
+      fontWeight: 700,
+      cursor: teamLoading ? "wait" : "pointer",
+      opacity: teamLoading || displayRecords.length === 0 ? 0.6 : 1,
+    }}
+  >
+    <Download size={16} />
+    Export Monthly Attendance
+  </button>
+)}
+
+          
           </div>
         )}
       />

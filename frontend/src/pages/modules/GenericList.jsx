@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { Trash2 } from "lucide-react";
 import API, { apiErrorMessage, apiItems } from "../../services/api";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
 import PageHeader from "../../components/ui/PageHeader";
 import DataTable from "../../components/ui/DataTable";
-
 const humanize = (s) =>
   String(s || "")
     .replace(/[_-]+/g, " ")
@@ -59,6 +59,33 @@ export default function GenericList({
       setLoading(false);
     }
   };
+  const handleDelete = async (row) => {
+    if (!row?._id) {
+      toast.error("Cannot delete: user ID is missing.");
+      return;
+    }
+
+    if (!["sales", "sales_executive", "admin", "manager"].includes(row.role)) {
+  toast.error("This account cannot be deleted.");
+  return;
+}
+
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${row.name || "this user"}?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await API.delete(`${endpoint}/${row._id}`);
+      setRows((current) =>
+        current.filter((item) => item._id !== row._id)
+      );
+      toast.success("User deleted successfully.");
+    } catch (e) {
+      toast.error(apiErrorMessage(e, "Failed to delete user"));
+    }
+  };
 
   useEffect(() => {
     load();
@@ -79,7 +106,42 @@ export default function GenericList({
           </button>
         }
       />
-      <DataTable columns={cols} data={rows} pageSize={15} emptyMessage={emptyMessage} />
+      <DataTable
+  columns={
+    endpoint === "/users"
+      ? [
+          ...cols,
+          {
+            header: "Actions",
+            render: (row) =>
+              ["sales", "sales_executive", "admin", "manager"].includes(row.role) ? (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(row)}
+                  className="btn-secondary"
+                  style={{
+                    padding: "6px 10px",
+                    fontSize: "12px",
+                    color: "#EF4444",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              ) : (
+                <span>—</span>
+              ),
+          },
+        ]
+      : cols
+  }
+  data={rows}
+  pageSize={15}
+  emptyMessage={emptyMessage}
+/>
       {roles ? null : null}
     </div>
   );

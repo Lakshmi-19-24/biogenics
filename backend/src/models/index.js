@@ -3,6 +3,7 @@ export { AuditLog } from './auditLog.model.js';
 export { Customer } from './customer.model.js';
 export { DailyReport } from './dailyReport.model.js';
 export { Document } from './document.model.js';
+export { ExcelSheet } from './excelSheet.model.js';
 export { Invoice } from './invoice.model.js';
 export { InventoryMovement } from './inventoryMovement.model.js';
 export { Lead } from './lead.model.js';

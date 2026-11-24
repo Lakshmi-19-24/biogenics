@@ -6,7 +6,7 @@ import {
   MapPin, Clock, CreditCard, Bell, BarChart3, Settings, LogOut,
   ChevronLeft, ChevronRight, X,
 } from "lucide-react";
-import { FileText, Target as TargetIcon, ClipboardCheck, Boxes, Receipt, LineChart, UserCog } from "lucide-react";
+import { FileSpreadsheet, FileText, Target as TargetIcon, ClipboardCheck, Boxes, Receipt, LineChart, UserCog } from "lucide-react";
 import AnimatedLogo from "../AnimatedLogo";
 
 const NAV = {
@@ -28,6 +28,7 @@ const NAV = {
     { to:"/invoices",     icon:Receipt,         label:"Invoices" },
     { to:"/inventory",    icon:Boxes,           label:"Inventory" },
     { to:"/documents",    icon:FileText,        label:"Documents",     group:"System" },
+    { to:"/excel-sheets", icon:FileSpreadsheet, label:"Excel Sheets" },
     { to:"/tracking",     icon:MapPin,          label:"GPS Tracking" },
     { to:"/notifications",icon:Bell,            label:"Notifications", group:"System" },
     { to:"/reports",      icon:BarChart3,       label:"Reports" },
@@ -52,6 +53,7 @@ const NAV = {
     { to:"/invoices",     icon:Receipt,         label:"Invoices" },
     { to:"/inventory",    icon:Boxes,           label:"Inventory" },
     { to:"/documents",    icon:FileText,        label:"Documents",     group:"System" },
+    { to:"/excel-sheets", icon:FileSpreadsheet, label:"Excel Sheets" },
     
     { to:"/notifications",icon:Bell,            label:"Notifications", group:"System" },
     { to:"/reports",      icon:BarChart3,       label:"Reports" },
@@ -75,6 +77,7 @@ const NAV = {
     { to:"/invoices",     icon:Receipt,         label:"Invoices" },
     { to:"/inventory",    icon:Boxes,           label:"Inventory" },
     { to:"/documents",    icon:FileText,        label:"Documents",     group:"System" },
+    { to:"/excel-sheets", icon:FileSpreadsheet, label:"Excel Sheets" },
     { to:"/tracking",     icon:MapPin,          label:"GPS Tracking" },
     { to:"/notifications",icon:Bell,            label:"Notifications", group:"System" },
     { to:"/reports",      icon:BarChart3,       label:"Reports" },
@@ -97,6 +100,7 @@ const NAV = {
     { to:"/targets",      icon:TargetIcon,      label:"Targets" },
     { to:"/reminders",    icon:Bell,            label:"Reminders" },
     { to:"/documents",    icon:FileText,        label:"Documents" },
+    { to:"/excel-sheets", icon:FileSpreadsheet, label:"Excel Sheets" },
     { to:"/settings",     icon:Settings,        label:"Settings" },
   ],
 };

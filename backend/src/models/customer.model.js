@@ -43,6 +43,8 @@ const customerSchema = new mongoose.Schema(
       coordinates: { type: [Number], default: [0, 0] }
     },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+    // The user (salesperson/admin) who created this customer. Used to keep each salesperson's customers private.
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     branch: { type: String, trim: true, index: true },
     tags: [{ type: String, trim: true }],
     status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active', index: true },

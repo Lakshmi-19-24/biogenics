@@ -2,10 +2,40 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import API, { collection } from "../../services/api";
 import { mapLeadFromApi, mapLeadToApi } from "../mappers";
 
-export const fetchLeads = createAsyncThunk("leads/fetch", async () => {
-  const response = await API.get("/leads?limit=100");
-  return collection(response.raw).map(mapLeadFromApi);
-});
+
+export const fetchLeads = createAsyncThunk(
+  "leads/fetch",
+  async (createdBy) => {
+   const params = new URLSearchParams({ limit: "500" });
+
+    if (createdBy && createdBy !== "All") {
+      params.set("createdBy", createdBy);
+    }
+
+    const response = await API.get(`/leads?${params.toString()}`);
+    return collection(response.raw).map(mapLeadFromApi);
+  }
+);
+
+
+export const fetchLeadSummary = createAsyncThunk(
+  "leads/fetchSummary",
+  async (createdBy) => {
+    const params = new URLSearchParams();
+
+    if (createdBy && createdBy !== "All") {
+      params.set("createdBy", createdBy);
+    }
+
+    const query = params.toString();
+    const response = await API.get(
+      `/leads/summary${query ? `?${query}` : ""}`
+    );
+
+    return response.data;
+  }
+);
+
 
 export const saveLead = createAsyncThunk("leads/save", async ({ id, lead }) => {
   const payload = mapLeadToApi(lead);

@@ -174,28 +174,56 @@ export const updateMe = asyncHandler(async (req, res) => {
   sendResponse(res, 200, 'Profile updated', user);
 });
 
+
 export const deleteUser = asyncHandler(async (req, res) => {
   const targetUser = await User.findById(req.params.id);
 
-  if (!targetUser) throw new ApiError(404, 'User not found');
+  if (!targetUser) {
+    throw new ApiError(404, 'User not found');
+  }
 
-  if (req.user._id.toString() === targetUser._id.toString()) {
+  // Prevent deleting your own account.
+  if (String(req.user._id) === String(targetUser._id)) {
     throw new ApiError(400, 'You cannot delete your own account');
   }
 
-  if (targetUser.role !== ROLES.SALES_EXECUTIVE) {
-    throw new ApiError(403, 'Only sales personnel can be deleted from this dashboard');
+  // Never allow deletion of the Owner account.
+  if (targetUser.role === ROLES.OWNER) {
+    throw new ApiError(403, 'The Owner account cannot be deleted');
   }
 
+  // Managers can delete only their assigned sales personnel.
   if (req.user.role === ROLES.MANAGER) {
+    if (targetUser.role !== ROLES.SALES_EXECUTIVE) {
+      throw new ApiError(
+        403,
+        'Managers can only delete their assigned sales personnel'
+      );
+    }
+
     const managerId = String(targetUser.manager || '');
-    if (!managerId || managerId !== String(req.user._id)) {
-      throw new ApiError(403, 'Managers can only delete their assigned sales personnel');
+
+    if (managerId !== String(req.user._id)) {
+      throw new ApiError(
+        403,
+        'Managers can only delete their assigned sales personnel'
+      );
     }
   }
 
+  // Only Owner and Admin can delete non-sales accounts.
+  if (
+    targetUser.role !== ROLES.SALES_EXECUTIVE &&
+    ![ROLES.OWNER, ROLES.ADMIN].includes(req.user.role)
+  ) {
+    throw new ApiError(403, 'You are not allowed to delete this user');
+  }
+
   await User.findByIdAndDelete(req.params.id);
-  sendResponse(res, 200, 'User deleted', { deletedUserId: req.params.id });
+
+  sendResponse(res, 200, 'User deleted', {
+    deletedUserId: req.params.id,
+  });
 });
 
 export const updateUser = asyncHandler(async (req, res) => {

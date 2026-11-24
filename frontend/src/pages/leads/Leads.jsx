@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useAuth } from "../../context/AuthContext";
+import API, { collection } from "../../services/api";
 import DataTable from "../../components/ui/DataTable";
 
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -11,7 +13,11 @@ import LoadingSpinner from "../../components/ui/LoadingSpinner";
 import PageHeader from "../../components/ui/PageHeader";
 
 import FormField from "../../components/ui/FormField";
-import { fetchLeads, saveLead } from "../../store/slices/leadsSlice";
+import {
+  fetchLeads,
+  fetchLeadSummary,
+  saveLead
+} from "../../store/slices/leadsSlice";
 import toast from "react-hot-toast";
 
 import { Plus, Users, Phone, Mail, Building, UserPlus } from "lucide-react";
@@ -43,6 +49,22 @@ export default function Leads() {
   const [open, setOpen] = useState(false);
 
   const [filter, setFilter] = useState("All");
+  
+const { user } = useAuth();
+const [salespeople, setSalespeople] = useState([]);
+const [selectedSalesperson, setSelectedSalesperson] = useState("All");
+
+
+const [leadSummary, setLeadSummary] = useState({
+  total: 0,
+  new: 0,
+  contacted: 0,
+  qualified: 0,
+  converted: 0,
+  lost: 0,
+});
+
+
 
   const [form, setForm] = useState({ name:"", email:"", phone:"", company:"", status:"New", source:"", notes:"" });
 
@@ -50,14 +72,45 @@ export default function Leads() {
   const dispatch = useDispatch();
   const storeLeads = useSelector((state) => state.leads.items);
 
-  useEffect(() => { load(); }, []);
+ useEffect(() => {
+  load();
+  loadLeadSummary("All");
+}, []);
+
+  
+useEffect(() => {
+  if (user?.role !== "owner") return;
+
+  const loadSalespeople = async () => {
+    try {
+      const response = await API.get(
+        
+"/users?role=sales&isActive=true&limit=100"
+
+      );
+      setSalespeople(collection(response.raw));
+    } catch (error) {
+      console.error("Failed to load salespeople:", error);
+      toast.error("Could not load salespeople");
+    }
+  };
+
+  loadSalespeople();
+}, [user?.role]);
+
 
   const load = async () => {
     try { const items = await dispatch(fetchLeads()).unwrap(); setLeads(items); } catch {}
     finally { setLoading(false); }
 
   };
-  useEffect(() => { setLeads(storeLeads); }, [storeLeads]);
+  
+  useEffect(() => {
+  if (selectedSalesperson === "All") {
+    setLeads(storeLeads);
+  }
+}, [storeLeads, selectedSalesperson]);
+
   const submit = async e => {
 
     e.preventDefault();
@@ -72,6 +125,21 @@ export default function Leads() {
 
   };
 
+  
+const loadLeadSummary = async (createdBy) => {
+  try {
+    const summary = await dispatch(
+      fetchLeadSummary(createdBy === "All" ? undefined : createdBy)
+    ).unwrap();
+
+    setLeadSummary(summary);
+  } catch (error) {
+    console.error("Failed to load lead summary:", error);
+    toast.error("Failed to load lead performance");
+  }
+};
+
+
   const reset = () => { setForm({name:"",email:"",phone:"",company:"",status:"New",source:"",notes:""}); setEditId(null); };
 
   const openEdit = l => { setForm({name:l.name||"",email:l.email||"",phone:l.phone||"",company:l.company||"",status:l.status||"New",source:l.source||"",notes:l.notes||""}); setEditId(l._id||l.id); setOpen(true); };
@@ -80,19 +148,74 @@ export default function Leads() {
 
 
 
-  const cols = [
 
-    { header:"Name", accessor:"name", render:r=><div><p style={{fontWeight:600,fontSize:"13.5px"}}>{r.name}</p><p style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"1px"}}>{r.company||"—"}</p></div> },
-
-    { header:"Phone", accessor:"phone", render:r=><span className="font-mono" style={{fontSize:"13px",color:"var(--text-3)"}}>{r.phone}</span> },
-
-    { header:"Email", accessor:"email", render:r=><span style={{fontSize:"13px",color:"var(--text-muted)"}}>{r.email||"—"}</span> },
-
-    { header:"Source", accessor:"source", render:r=>r.source?<span style={{fontSize:"12px",padding:"3px 8px",borderRadius:"6px",background:"var(--surface-3)",color:"var(--text-3)",border:"1px solid var(--border)"}}>{r.source}</span>:<span style={{color:"var(--text-muted)"}}>—</span> },
-
-    { header:"Status", accessor:"status", render:r=><StatusBadge status={r.status}/> },
-
-  ];
+const cols = [
+  {
+    header: "Name",
+    accessor: "name",
+    render: (r) => (
+      <div>
+        <p style={{ fontWeight: 600, fontSize: "13.5px" }}>{r.name}</p>
+        <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "1px" }}>
+          {r.company || "—"}
+        </p>
+      </div>
+    ),
+  },
+  {
+    header: "Created By",
+    accessor: "createdBy",
+    render: (r) => (
+      <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+        {typeof r.createdBy === "object"
+          ? r.createdBy?.name || "—"
+          : "—"}
+      </span>
+    ),
+  },
+  {
+    header: "Phone",
+    accessor: "phone",
+    render: (r) => (
+      <span className="font-mono" style={{ fontSize: "13px", color: "var(--text-3)" }}>
+        {r.phone}
+      </span>
+    ),
+  },
+  {
+    header: "Email",
+    accessor: "email",
+    render: (r) => (
+      <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+        {r.email || "—"}
+      </span>
+    ),
+  },
+  {
+    header: "Source",
+    accessor: "source",
+    render: (r) =>
+      r.source ? (
+        <span style={{
+          fontSize: "12px",
+          padding: "3px 8px",
+          borderRadius: "6px",
+          background: "var(--surface-3)",
+          color: "var(--text-3)",
+          border: "1px solid var(--border)"
+        }}>
+          {r.source}
+        </span>
+      ) : (
+        <span style={{ color: "var(--text-muted)" }}>—</span>
+      ),
+  },
+  {
+    header: "Status",
+    accessor: "status",
+    render: (r) => <StatusBadge status={r.status} />,
+  },
+];
 
 
 
@@ -107,16 +230,65 @@ export default function Leads() {
         <button className="btn-primary" onClick={()=>{ reset(); setOpen(true); }}><Plus size={16}/>Add Lead</button>
 
       }/>
+       
+
+
+       
+{user?.role === "owner" && (
+  <div style={{ marginBottom: "20px" }}>
+    <label
+      htmlFor="salesperson-filter"
+      style={{ marginRight: "12px", fontWeight: 600 }}
+    >
+      Filter by Salesperson:
+    </label>
+
+    <select
+      id="salesperson-filter"
+      value={selectedSalesperson}
+      onChange={(e) => {
+        const value = e.target.value;
+        setSelectedSalesperson(value);
+        loadLeadSummary(value);
+        setLoading(true);
+
+        dispatch(fetchLeads(value === "All" ? undefined : value))
+          .unwrap()
+          .then((items) => setLeads(items))
+          .catch(() => toast.error("Failed to filter leads"))
+          .finally(() => setLoading(false));
+      }}
+      style={{
+        padding: "10px 14px",
+        borderRadius: "8px",
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+        color: "var(--text)",
+      }}
+    >
+      <option value="All">All Salespeople</option>
+
+      {salespeople.map((person) => (
+        <option key={person._id} value={person._id}>
+          {person.name}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
 
 
 
+  
       {/* Pipeline cards */}
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"12px",marginBottom:"20px"}}>
 
         {S.map(s=>{
 
-          const count = leads.filter(l=>l.status===s).length;
+          
+const count = leadSummary[s.toLowerCase()] ?? 0;
+
 
           const active = filter===s;
 
@@ -164,7 +336,7 @@ export default function Leads() {
 
           }}>
 
-            {s}{s!=="All"&&` (${leads.filter(l=>l.status===s).length})`}
+            {s}{s!=="All"&&` (${leadSummary[s.toLowerCase()] ?? 0})`}
 
           </button>
 

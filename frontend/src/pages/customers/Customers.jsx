@@ -913,10 +913,12 @@ const checkOutCustomer = async (customer) => {
 
     if (activeVisitCustomerId === row._id) {
       if (!visitReportSubmitted) {
-     window.location.href =
+    
+window.location.href =
   `${import.meta.env.BASE_URL}daily-reports/submit?returnTo=${encodeURIComponent(
     "/customers"
-  )}&returnVisitId=${activeVisitId}`;
+  )}&visitId=${activeVisitId}&returnVisitId=${activeVisitId}`;
+
         return;
       }
 

@@ -9,6 +9,8 @@
     "start": "node server.js",
     "check": "node --check server.js",
     "seed:admin": "node src/scripts/seedAdmin.js",
+    "rename:users": "node src/scripts/renameUsers.js",
+    "backfill:customer-owners": "node src/scripts/backfillCustomerOwners.js",
     "sync:catalog": "node src/scripts/syncProductCatalog.js",
     "test:socket": "node src/scripts/socketSmokeTest.js"
   },

@@ -2,6 +2,8 @@ import { Customer } from "../models/customer.model.js";
 
 import { Order } from "../models/order.model.js";
 
+import { MANAGEMENT_ROLES } from "../constants/roles.js";
+
 import { ApiError } from "../utils/apiError.js";
 
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -12,6 +14,62 @@ import {
   buildSearchFilter,
   getPagination,
 } from "../utils/pagination.js";
+
+/*
+ * ============================================================
+ * OWNERSHIP SCOPE
+ * ============================================================
+ *
+ * Owner / Admin / Manager  -> can see ALL customers.
+ * Salesperson (anyone else) -> can see customers they created,
+ *                              customers assigned to them, and old
+ *                              legacy customers they interacted with.
+ *
+ * This is spread into every query below, so a salesperson
+ * can never list, open, edit, delete, restore or add
+ * interactions to another salesperson's customer
+ * (even by guessing the customer id in the URL).
+ *
+ * Nothing is ever deleted by this - it only filters.
+ */
+
+const canSeeAllCustomers = (user) =>
+  MANAGEMENT_ROLES.includes(
+    String(user?.role || "")
+      .toLowerCase()
+      .trim()
+  );
+
+const ownerScope = (user) => {
+  if (canSeeAllCustomers(user)) return {};
+
+  /*
+   * A salesperson sees a customer if ANY of these is true:
+   *   1. they created it (createdBy)
+   *   2. it is assigned to them (assignedTo) - covers customers
+   *      that an admin/manager created and gave to them
+   *   3. it is an OLD customer with no createdBy at all, but the
+   *      salesperson wrote an interaction on it (legacy records
+   *      created before the createdBy field existed)
+   *
+   * Wrapped in $and so it never collides with the $or used by
+   * the search filter.
+   */
+  return {
+    $and: [
+      {
+        $or: [
+          { createdBy: user._id },
+          { assignedTo: user._id },
+          {
+            createdBy: { $in: [null] },
+            "interactions.createdBy": user._id,
+          },
+        ],
+      },
+    ],
+  };
+};
 
 /*
  * ============================================================
@@ -54,6 +112,14 @@ export const listCustomers =
       $ne: false,
     };
 
+    /*
+     * Salesperson sees only the customers they created.
+     */
+    Object.assign(
+      filter,
+      ownerScope(req.user)
+    );
+
     if (req.query.assignedTo) {
       filter.assignedTo =
         req.query.assignedTo;
@@ -72,6 +138,10 @@ export const listCustomers =
       Customer.find(filter)
         .populate(
           "assignedTo",
+          "name email role"
+        )
+        .populate(
+          "createdBy",
           "name email role"
         )
         .skip(skip)
@@ -175,6 +245,8 @@ export const listDeletedCustomers =
     const filter = {
       isActive: false,
 
+      ...ownerScope(req.user),
+
       ...buildSearchFilter(
         req.query.search,
         [
@@ -246,9 +318,27 @@ export const listDeletedCustomers =
 
 export const createCustomer =
   asyncHandler(async (req, res) => {
+    /*
+     * Stamp the creator so this customer belongs to
+     * the logged-in user. createdBy can never be
+     * supplied/overridden from the request body.
+     */
+    const payload = {
+      ...req.body,
+      createdBy: req.user._id,
+    };
+
+    if (
+      !canSeeAllCustomers(req.user) &&
+      !payload.assignedTo
+    ) {
+      payload.assignedTo =
+        req.user._id;
+    }
+
     const customer =
       await Customer.create(
-        req.body
+        payload
       );
 
     sendResponse(
@@ -270,6 +360,7 @@ export const getCustomer =
     const customer =
       await Customer.findOne({
         _id: req.params.id,
+        ...ownerScope(req.user),
         isActive: {
           $ne: false,
         },
@@ -303,15 +394,22 @@ export const getCustomer =
 
 export const updateCustomer =
   asyncHandler(async (req, res) => {
+    /*
+     * Ownership can never be changed from the request body.
+     */
+    const { createdBy, ...updates } =
+      req.body;
+
     const customer =
       await Customer.findOneAndUpdate(
         {
           _id: req.params.id,
+          ...ownerScope(req.user),
           isActive: {
             $ne: false,
           },
         },
-        req.body,
+        updates,
         {
           new: true,
           runValidators: true,
@@ -347,9 +445,10 @@ export const updateCustomer =
 export const deleteCustomer =
   asyncHandler(async (req, res) => {
     const customer =
-      await Customer.findById(
-        req.params.id
-      );
+      await Customer.findOne({
+        _id: req.params.id,
+        ...ownerScope(req.user),
+      });
 
     if (!customer) {
       throw new ApiError(
@@ -392,9 +491,10 @@ export const deleteCustomer =
 export const restoreCustomer =
   asyncHandler(async (req, res) => {
     const customer =
-      await Customer.findById(
-        req.params.id
-      );
+      await Customer.findOne({
+        _id: req.params.id,
+        ...ownerScope(req.user),
+      });
 
     if (!customer) {
       throw new ApiError(
@@ -440,6 +540,7 @@ export const addInteraction =
       await Customer.findOneAndUpdate(
         {
           _id: req.params.id,
+          ...ownerScope(req.user),
           isActive: {
             $ne: false,
           },
@@ -485,6 +586,7 @@ export const getPurchaseHistory =
     const customer =
       await Customer.findOne({
         _id: req.params.id,
+        ...ownerScope(req.user),
         isActive: {
           $ne: false,
         },
