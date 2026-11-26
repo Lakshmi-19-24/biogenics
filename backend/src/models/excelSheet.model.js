@@ -7,9 +7,13 @@ const excelSheetSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     notes: { type: String, trim: true, default: '' },
 
+    // "file" = uploaded Excel/CSV, "google" = Google Sheet / Doc link
+    type: { type: String, enum: ['file', 'google'], default: 'file' },
+    link: { type: String, trim: true, default: '' },
+
     file: {
-      url: { type: String, required: true },
-      fileId: { type: String, required: true },
+      url: String,
+      fileId: String,
       name: String,
       size: Number,
       mimeType: String

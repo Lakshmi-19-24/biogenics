@@ -48,6 +48,21 @@ const parseIdList = (value) => {
   return ids;
 };
 
+const GOOGLE_HOSTS = ['docs.google.com', 'drive.google.com', 'sheets.google.com'];
+
+const cleanGoogleLink = (raw) => {
+  let url;
+  try {
+    url = new URL(String(raw).trim());
+  } catch {
+    throw new ApiError(400, 'Please enter a valid Google link');
+  }
+  if (url.protocol !== 'https:' || !GOOGLE_HOSTS.includes(url.hostname)) {
+    throw new ApiError(400, 'Only Google Docs / Sheets / Drive links are allowed');
+  }
+  return url.toString();
+};
+
 const toBool = (value) => value === true || value === 'true' || value === '1';
 
 const validateRecipients = async (ids) => {
@@ -107,9 +122,15 @@ export const listExcelSheets = asyncHandler(async (req, res) => {
 });
 
 export const uploadExcelSheet = asyncHandler(async (req, res) => {
-  if (!req.file) throw new ApiError(400, 'Excel file is required');
+  const rawLink = String(req.body.link || '').trim();
+  if (!req.file && !rawLink) {
+    throw new ApiError(400, 'Upload an Excel file or paste a Google Docs / Sheets link');
+  }
 
-  const title = String(req.body.title || '').trim() || req.file.originalname;
+  const link = req.file ? '' : cleanGoogleLink(rawLink);
+  const title =
+    String(req.body.title || '').trim() ||
+    (req.file ? req.file.originalname : 'Google document');
 
   let accessAll = false;
   let assignedTo = [];
@@ -127,13 +148,17 @@ export const uploadExcelSheet = asyncHandler(async (req, res) => {
   const _id = new mongoose.Types.ObjectId();
   const sheetId = `XL-${String(_id).slice(-6).toUpperCase()}`;
 
-  const file = await uploadToImageKit(req.file, '/biogenics/excel-sheets');
+  const file = req.file
+    ? await uploadToImageKit(req.file, '/biogenics/excel-sheets')
+    : undefined;
 
   const sheet = await ExcelSheet.create({
     _id,
     sheetId,
     title,
     notes: String(req.body.notes || '').trim(),
+    type: link ? 'google' : 'file',
+    link,
     file,
     uploadedBy: req.user._id,
     accessAll,

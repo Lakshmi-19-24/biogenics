@@ -7,7 +7,7 @@ import FormField from "../../components/ui/FormField";
 import API, { apiErrorMessage, apiItems } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
-import { FileSpreadsheet, Plus, Trash2, Upload, UserPlus, Download } from "lucide-react";
+import { FileSpreadsheet, Plus, Trash2, Upload, UserPlus, Download, ExternalLink } from "lucide-react";
 
 const inputStyle = {
   width: "100%",
@@ -76,7 +76,7 @@ export default function ExcelSheets() {
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [form, setForm] = useState({ title: "", notes: "", file: null, accessAll: false, assignedTo: [] });
+  const [form, setForm] = useState({ title: "", notes: "", file: null, link: "", mode: "file", accessAll: false, assignedTo: [] });
 
   const [accessSheet, setAccessSheet] = useState(null);
   const [accessForm, setAccessForm] = useState({ accessAll: false, assignedTo: [] });
@@ -103,16 +103,18 @@ export default function ExcelSheets() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.role]);
 
-  const resetUpload = () => setForm({ title: "", notes: "", file: null, accessAll: false, assignedTo: [] });
+  const resetUpload = () => setForm({ title: "", notes: "", file: null, link: "", mode: "file", accessAll: false, assignedTo: [] });
 
   const submitUpload = async (event) => {
     event.preventDefault();
-    if (!form.file) return toast.error("Please choose an Excel file");
+    if (form.mode === "file" && !form.file) return toast.error("Please choose an Excel file");
+    if (form.mode === "google" && !form.link.trim()) return toast.error("Please paste the Google link");
 
     const body = new FormData();
-    body.append("title", form.title || form.file.name);
+    body.append("title", form.title || (form.mode === "file" ? form.file.name : "Google document"));
     if (form.notes) body.append("notes", form.notes);
-    body.append("file", form.file);
+    if (form.mode === "file") body.append("file", form.file);
+    else body.append("link", form.link.trim());
     if (canGrant) {
       body.append("accessAll", String(form.accessAll));
       body.append("assignedTo", JSON.stringify(form.accessAll ? [] : form.assignedTo));
@@ -197,7 +199,11 @@ export default function ExcelSheets() {
       header: "File",
       accessor: "file",
       render: (row) =>
-        row.file?.url ? (
+        row.type === "google" && row.link ? (
+          <a href={row.link} target="_blank" rel="noreferrer" style={{ color: "var(--emerald)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "4px" }}>
+            <ExternalLink size={14} /> Open Google Doc
+          </a>
+        ) : row.file?.url ? (
           <a href={row.file.url} target="_blank" rel="noreferrer" download style={{ color: "var(--emerald)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "4px" }}>
             <Download size={14} /> Download
           </a>
@@ -244,7 +250,7 @@ export default function ExcelSheets() {
     <div className="page-enter">
       <PageHeader
         eyebrow="Excel"
-        title="Excel Document Upload"
+        title="Excel &amp; Google Docs Upload"
         subtitle={
           canGrant
             ? "Upload Excel sheets and choose who can see them (Sales and Billing)"
@@ -252,7 +258,7 @@ export default function ExcelSheets() {
         }
         action={
           <button className="btn-primary" onClick={() => { resetUpload(); setUploadOpen(true); }}>
-            <Plus size={16} /> Upload Excel
+            <Plus size={16} /> Upload / Add Link
           </button>
         }
       />
@@ -260,7 +266,7 @@ export default function ExcelSheets() {
       <DataTable columns={columns} data={sheets} pageSize={15} emptyMessage="No Excel sheets available." />
 
       {/* Upload modal */}
-      <Modal isOpen={uploadOpen} onClose={() => !uploading && setUploadOpen(false)} title="Upload Excel Sheet" size="lg">
+      <Modal isOpen={uploadOpen} onClose={() => !uploading && setUploadOpen(false)} title="Upload Excel / Google Doc" size="lg">
         <form onSubmit={submitUpload}>
           <div style={{ display: "grid", gap: "16px" }}>
             <FormField label="Title">
@@ -271,14 +277,42 @@ export default function ExcelSheets() {
               <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={inputStyle} placeholder="Optional" />
             </FormField>
 
-            <FormField label="Excel File (.xlsx, .xls, .csv)" required>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.xlsm,.csv"
-                onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })}
-                style={inputStyle}
-              />
-            </FormField>
+            <div style={{ display: "flex", gap: "8px" }}>
+              {[["file", "Upload Excel file"], ["google", "Google Docs / Sheets link"]].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={form.mode === value ? "btn-primary" : "btn-ghost"}
+                  style={{ flex: 1, justifyContent: "center" }}
+                  onClick={() => setForm({ ...form, mode: value })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {form.mode === "file" ? (
+              <FormField label="Excel File (.xlsx, .xls, .csv)" required>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.xlsm,.csv"
+                  onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })}
+                  style={inputStyle}
+                />
+              </FormField>
+            ) : (
+              <FormField label="Google Docs / Sheets link" required>
+                <input
+                  value={form.link}
+                  onChange={(e) => setForm({ ...form, link: e.target.value })}
+                  style={inputStyle}
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                />
+                <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "6px" }}>
+                  In Google, click Share and give access to the people who need it, then paste the link here.
+                </p>
+              </FormField>
+            )}
 
             {canGrant && (
               <FormField label="Who can see this sheet?">
